@@ -1,27 +1,46 @@
-"""
-threat_engine.py
-Classifies threat type and assigns risk score.
-"""
-
 def classify_threat(telemetry, anomaly_status):
-    """
-    Classify threat type and assign risk score.
-    Returns: dict with type, risk, and description.
-    """
-    if anomaly_status != 'ANOMALY':
-        return {'type': 'None', 'risk': 'LOW', 'description': 'No threat detected.'}
+    # ML Status check (Sensitive check)
+    # Agar model 'NORMAL' de raha hai tab bhi hum emergency thresholds check karenge
+    is_emergency = telemetry['altitude'] < 490 or telemetry.get('signal_strength', 100) < 15
 
-    # Simple rules for threat classification
-    if telemetry['altitude'] < 355 or telemetry['altitude'] > 445:
-        return {'type': 'Orbital anomaly', 'risk': 'HIGH', 'description': 'Satellite orbit deviation detected.'}
-    elif telemetry['signal_strength'] < 70:
-        return {'type': 'Signal interference', 'risk': 'MEDIUM', 'description': 'Possible signal jamming or interference.'}
-    elif abs(telemetry['velocity'] - 7.8) > 0.4:
-        return {'type': 'Possible debris collision', 'risk': 'HIGH', 'description': 'Velocity anomaly suggests possible collision.'}
-    else:
-        return {'type': 'Unknown anomaly', 'risk': 'MEDIUM', 'description': 'Unclassified anomaly detected.'}
+    if anomaly_status != 'ANOMALY' and not is_emergency:
+        return {'type': 'None', 'risk': 'LOW', 'description': 'All systems nominal.'}
 
-if __name__ == '__main__':
-    # Example usage
-    t = {'altitude': 350, 'velocity': 7.8, 'signal_strength': 95}
-    print(classify_threat(t, 'ANOMALY'))
+    # 1. ORBITAL DECAY (Altitude based)
+    if telemetry['altitude'] < 380:
+        return {
+            'type': 'CRITICAL: Orbital Decay',
+            'risk': 'CRITICAL', # Risk level matched with UI
+            'description': f"Altitude critical: {telemetry['altitude']}km. Re-entry imminent!"
+        }
+
+    # 2. COLLISION RISK (Proximity based)
+    # Ensure simulator is sending proximity_km
+    prox = telemetry.get('proximity_km', 100) 
+    if prox < 20: 
+        return {
+            'type': 'DANGER: Collision Imminent',
+            'risk': 'CRITICAL',
+            'description': f"Debris detected at {prox}km. Execute maneuver!"
+        }
+
+    # 3. SIGNAL/CYBER (Signal strength based)
+    sig = telemetry.get('signal_strength', 100)
+    if sig < 25:
+        return {
+            'type': 'SECURITY: Signal Jamming',
+            'risk': 'WARNING', # WARNING class in your CSS
+            'description': f"Signal strength dropped to {sig}%. Interference detected."
+        }
+
+    # 4. KINETIC (Velocity based)
+    # Adjust 7.5 to your simulator's average velocity
+    current_vel = telemetry['velocity']
+    if abs(current_vel - 7.5) > 1.0:
+        return {
+            'type': 'PHYSICAL: Velocity Anomaly',
+            'risk': 'WARNING',
+            'description': f"Unstable velocity: {current_vel} km/s."
+        }
+
+    return {'type': 'SYSTEM: Unknown Anomaly', 'risk': 'WARNING', 'description': 'Irregular pattern detected.'}

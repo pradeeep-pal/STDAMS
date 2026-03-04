@@ -7,14 +7,12 @@ import pandas as pd
 import os
 from model import detect_anomaly
 from threat_engine import classify_threat
-from alerts import generate_alert
 
 app = Flask(__name__)
 
 DATA_FILE = 'data/satellite.csv'
 
 # Helper to get latest telemetry
-
 def get_latest_telemetry():
     if not os.path.exists(DATA_FILE):
         return None
@@ -23,12 +21,14 @@ def get_latest_telemetry():
         return None
     row = df.iloc[-1]
     return {
-        'timestamp': row['timestamp'],
+        'timestamp': row.get('timestamp', 'N/A'),
         'altitude': float(row['altitude']),
         'velocity': float(row['velocity']),
-        'signal_strength': float(row['signal_strength'])
+        'signal_strength': float(row['signal_strength']),
+        'proximity_km': float(row.get('proximity_km', 100))
     }
 
+# --- YEH ROUTE MISSING THA, ISE ADD KAREIN ---
 @app.route('/')
 def dashboard():
     return render_template('dashboard.html')
@@ -51,10 +51,19 @@ def api_alerts():
     telemetry = get_latest_telemetry()
     if not telemetry:
         return jsonify({'level': 'NORMAL', 'message': 'No telemetry data.', 'type': 'None'})
-    anomaly = detect_anomaly(telemetry)
+    
+    # ML model status (ANOMALY ya NORMAL)
+    anomaly = detect_anomaly(telemetry) 
+    
+    # Threat Engine classification
     threat = classify_threat(telemetry, anomaly['status'])
-    alert = generate_alert(threat)
-    return jsonify(alert)
+    
+    return jsonify({
+        'level': threat['risk'],
+        'message': threat['description'],
+        'type': threat['type']
+    })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Debug mode ON rakhein taaki errors dikhein
+    app.run(debug=True, port=5000)

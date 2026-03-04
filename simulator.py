@@ -1,60 +1,68 @@
-"""
-simulator.py
-Simulates real-time satellite telemetry data with random anomalies.
-"""
 import time
 import random
 import csv
+import os
 from datetime import datetime
 
 DATA_FILE = 'data/satellite.csv'
 
-# Initial normal values
-ALTITUDE = 400  # km
-VELOCITY = 7.8  # km/s
-SIGNAL = 95     # %
-
+# Normal values
+ALTITUDE = 420.0
+VELOCITY = 7.6
+SIGNAL = 98.0
+PROXIMITY = 100.0 # New field for Collision Detection
 
 def generate_telemetry():
-    """Generate normal telemetry with occasional anomalies."""
-    global ALTITUDE, VELOCITY, SIGNAL
-    # Normal drift
-    ALTITUDE += random.uniform(-0.2, 0.2)
-    VELOCITY += random.uniform(-0.01, 0.01)
-    SIGNAL += random.uniform(-0.2, 0.2)
+    global ALTITUDE, VELOCITY, SIGNAL, PROXIMITY
+    
+    # 1. Normal Random Drift
+    ALTITUDE += random.uniform(-2.0, 2.0)
+    VELOCITY += random.uniform(-0.02, 0.02)
+    SIGNAL += random.uniform(-0.3, 0.3)
+    PROXIMITY += random.uniform(-2.0, 2.0)
 
-    # Inject anomaly randomly
-    anomaly = random.random() < 0.15  # 15% chance
-    if anomaly:
-        anomaly_type = random.choice(['altitude', 'velocity', 'signal'])
-        if anomaly_type == 'altitude':
-            ALTITUDE += random.uniform(-5, 5)
-        elif anomaly_type == 'velocity':
-            VELOCITY += random.uniform(-0.5, 0.5)
-        elif anomaly_type == 'signal':
-            SIGNAL += random.uniform(-10, 10)
+    # 2. Inject Anomaly (20% chance for more action)
+    if random.random() < 0.20:
+        event = random.choice(['drop', 'jam', 'close'])
+        if event == 'drop':
+            ALTITUDE -= random.uniform(5, 10) # Orbital decay test
+        elif event == 'jam':
+            SIGNAL -= random.uniform(15, 30) # Cyber attack test
+        elif event == 'close':
+            PROXIMITY = random.uniform(5, 18) # Collision test
 
-    # Clamp values
-    ALTITUDE = max(350, min(ALTITUDE, 450))
-    VELOCITY = max(7.0, min(VELOCITY, 8.5))
-    SIGNAL = max(60, min(SIGNAL, 100))
+    # 3. Clamping (Scale ke andar rakhein)
+    ALTITUDE = max(345, min(ALTITUDE, 455)) # Dashboard scale: 340-460
+    VELOCITY = max(7.1, min(VELOCITY, 8.4)) 
+    SIGNAL = max(10, min(SIGNAL, 100))
+    PROXIMITY = max(5, min(PROXIMITY, 150))
 
     return {
-        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'timestamp': datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + 'Z',
         'altitude': round(ALTITUDE, 2),
         'velocity': round(VELOCITY, 2),
-        'signal_strength': round(SIGNAL, 2)
+        'signal_strength': round(SIGNAL, 2),
+        'proximity_km': round(PROXIMITY, 2)
     }
 
 def write_telemetry(row):
+    file_exists = os.path.isfile(DATA_FILE)
     with open(DATA_FILE, 'a', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['timestamp', 'altitude', 'velocity', 'signal_strength'])
+        # Fieldnames updated with proximity_km
+        fieldnames = ['timestamp', 'altitude', 'velocity', 'signal_strength', 'proximity_km']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
         writer.writerow(row)
 
 if __name__ == '__main__':
-    print('Starting telemetry simulation...')
+    # File saaf karke start karein taaki purana junk data na ho
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+        
+    print('Starting STDAMS Telemetry Simulator...')
     while True:
-        telemetry = generate_telemetry()
-        write_telemetry(telemetry)
-        print('Telemetry:', telemetry)
-        time.sleep(5)
+        data = generate_telemetry()
+        write_telemetry(data)
+        print(f"Data Sent: Alt: {data['altitude']} | Signal: {data['signal_strength']} | Prox: {data['proximity_km']}")
+        time.sleep(2) # Refresh rate fast
